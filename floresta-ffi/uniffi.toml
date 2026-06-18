@@ -1,0 +1,6 @@
+[bindings.kotlin]
+package_name = "org.getfloresta"
+cdylib_name = "florestad_ffi"
+
+[bindings.python]
+cdylib_name = "florestad_ffi"

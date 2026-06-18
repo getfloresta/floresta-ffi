@@ -4,7 +4,33 @@ use std::path::PathBuf;
 use std::str::FromStr;
 
 use bitcoin::hashes::Hash;
-use bitcoin::Network;
+
+#[derive(Debug, Clone)]
+/// The Bitcoin network to run on.
+pub enum Network {
+    /// Bitcoin mainnet.
+    Bitcoin,
+    /// Bitcoin signet.
+    Signet,
+    /// Bitcoin testnet.
+    Testnet,
+    /// Bitcoin regtest.
+    Regtest,
+    /// Bitcoin testnet4.
+    Testnet4,
+}
+
+impl From<Network> for bitcoin::Network {
+    fn from(network: Network) -> bitcoin::Network {
+        match network {
+            Network::Bitcoin => bitcoin::Network::Bitcoin,
+            Network::Signet => bitcoin::Network::Signet,
+            Network::Testnet => bitcoin::Network::Testnet,
+            Network::Regtest => bitcoin::Network::Regtest,
+            Network::Testnet4 => bitcoin::Network::Testnet4,
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 /// Configures the assume-valid behavior for script validation.
@@ -79,7 +105,7 @@ impl Florestad {
             .map(PathBuf::from)
             .unwrap_or_else(|_| std::env::temp_dir())
             .join(".floresta");
-        let config = floresta_node::Config::new(Network::Bitcoin, datadir);
+        let config = floresta_node::Config::new(bitcoin::Network::Bitcoin, datadir);
         let florestad = floresta_node::Florestad::from_config(config);
         Self { rt: _rt, florestad }
     }
@@ -216,7 +242,8 @@ pub struct Config {
 
 impl From<Config> for floresta_node::Config {
     fn from(config: Config) -> floresta_node::Config {
-        let mut cfg = floresta_node::Config::new(config.network, PathBuf::from(&config.datadir));
+        let mut cfg =
+            floresta_node::Config::new(config.network.into(), PathBuf::from(&config.datadir));
 
         cfg.disable_dns_seeds = config.disable_dns_seeds;
         cfg.wallet_xpub = config.wallet_xpub;
