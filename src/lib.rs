@@ -1,120 +1,282 @@
 uniffi::include_scaffolding!("floresta");
 
+use std::path::PathBuf;
+use std::str::FromStr;
+
+use bitcoin::hashes::Hash;
 use bitcoin::Network;
 
-/// The FFI representation of the florestad service
+#[derive(Debug, Clone)]
+/// Configures the assume-valid behavior for script validation.
+pub enum AssumeValidArg {
+    /// Validate all scripts from genesis.
+    Disabled,
+
+    /// Use Floresta's hard-coded block hash.
+    Hardcoded,
+
+    /// Use a user-provided block hash (64-character hex string).
+    UserInput { block_hash: String },
+}
+
+#[derive(Debug, Clone)]
+/// A pre-computed Utreexo accumulator state.
+pub struct AssumeUtreexoValue {
+    /// The block hash at which this accumulator state is valid.
+    pub block_hash: String,
+
+    /// The block height at which this accumulator state is valid.
+    pub height: u32,
+
+    /// The Utreexo accumulator roots at this block, as hex strings.
+    pub roots: Vec<String>,
+
+    /// The number of leaves in the Utreexo accumulator at this block.
+    pub leaves: u64,
+}
+
+#[derive(Debug)]
+/// Error returned by the Floresta FFI layer.
+pub enum FlorestaFfiError {
+    /// The daemon failed to start, with an error message.
+    StartError { message: String },
+}
+
+impl std::fmt::Display for FlorestaFfiError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::StartError { message } => write!(f, "{message}"),
+        }
+    }
+}
+
+impl std::error::Error for FlorestaFfiError {}
+
+/// A Floresta Bitcoin node instance.
 ///
-/// This struct holds florestad and a runtime that will be used to run the service. It is the
-/// public interface to the service, and it should be used to interact with it.
+/// Wraps the Floresta daemon and a Tokio runtime. Create with [`Florestad::new`]
+/// for defaults or [`Florestad::from_config`] for custom settings. Call
+/// [`Florestad::start`] to begin syncing and [`Florestad::stop`] before exit.
 pub struct Florestad {
     rt: tokio::runtime::Runtime,
-    florestad: florestad::Florestad,
+    florestad: floresta_node::Florestad,
 }
 
 impl Florestad {
-    /// Create a new instance of florestad
+    /// Create a new Floresta node with default configuration.
     ///
-    /// This will create a new instance of florestad, but it won't start it. You need to call
-    /// `start` to start the service. We'll use the default configuration for the service.
+    /// Uses Bitcoin mainnet and the `$HOME/.floresta` data directory.
+    /// Falls back to the system temp directory if `$HOME` is not set.
     pub fn new() -> Florestad {
         let _rt = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .worker_threads(4)
             .thread_name("florestad")
             .build()
-            .unwrap();
+            .expect("failed to create tokio runtime");
 
-        let florestad = florestad::Florestad::default();
+        let datadir = std::env::var("HOME")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| std::env::temp_dir())
+            .join(".floresta");
+        let config = floresta_node::Config::new(Network::Bitcoin, datadir);
+        let florestad = floresta_node::Florestad::from_config(config);
         Self { rt: _rt, florestad }
     }
-    
-    /// Create a new instance of florestad from a configuration
-    ///
-    /// This will create a new instance of florestad, but it won't start it. You need to call
-    /// `start` to start the service. We'll use the configuration provided to start the service.
+
+    /// Create a new Floresta node with the given configuration.
     pub fn from_config(config: Config) -> Florestad {
         let _rt = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .worker_threads(4)
             .thread_name("florestad")
             .build()
-            .unwrap();
+            .expect("failed to create tokio runtime");
 
-        let florestad = florestad::Florestad::from_config(config.into());
+        let florestad = floresta_node::Florestad::from_config(config.into());
         Self { rt: _rt, florestad }
     }
-    
-    /// Gracefully stop the service
+
+    /// Start the node.
     ///
-    /// This method should be called before your application exits. It will stop the service
-    /// gracefully, waiting for all pending requests to finish. If you don't call this method, you
-    /// may corrupt the data and lose data.
+    /// Begins syncing the blockchain, serving the Electrum and JSON-RPC
+    /// interfaces, and watching configured wallets. Returns an error if
+    /// the data directory is not writable or initialization fails.
+    pub fn start(&self) -> Result<(), FlorestaFfiError> {
+        self.rt.block_on(async {
+            self.florestad
+                .start()
+                .await
+                .map_err(|e| FlorestaFfiError::StartError {
+                    message: e.to_string(),
+                })
+        })
+    }
+
+    /// Gracefully stop the node.
     ///
-    /// This is equivalent to calling the `stop` rpc method.
+    /// Waits for all pending operations to finish and flushes data to disk.
+    /// Always call this before exiting to avoid data corruption.
     pub fn stop(&self) {
         self.rt.block_on(async {
             self.florestad.stop().await;
         });
     }
-    
-    /// Start the service
-    ///
-    /// This method will start the service. It will block the current thread until the service is
-    /// fully started. It should not take long, but you may prefer calling it outside of the main
-    /// thread.
-    ///
-    /// After this function returns, the service is ready to accept requests. Floresta will start
-    /// running on the background and do all the heavy lifting for you.
-    pub fn start(&self) {
-        self.rt.block_on(async {
-            self.florestad.start().await;
-        });
+}
+
+impl Default for Florestad {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
+/// Configuration for the Floresta daemon.
 pub struct Config {
-    /// Where we should place our data
-    ///
-    /// This directory must be readable and writable by our proccess. We'll use this dir to store
-    /// both chain and wallet data, so this should be kept in a non-volatile medium. We are not
-    /// particurly aggressive in disk usage, so we don't need a fast disk to work.
-    ///
-    /// If not set, it defaults to $HOME/.floresta
-    pub data_dir: Option<String>,
+    /// Path to the data directory. Must be readable and writable.
+    pub datadir: String,
 
-    /// The address of the electrum server to listen on
-    pub electrum_address: Option<String>,
-
-    /// The address of the json rpc server to listen on
-    pub rpc_address: Option<String>,
-
-    /// The height of the first filter we should download
-    pub filters_start_height: Option<i32>,
-
-    /// The network we are running on
+    /// The Bitcoin network to run on.
     pub network: Network,
 
-    /// The wallet xpub to keep track of funds for
-    pub wallet_xpub: Option<String>,
+    /// Disable DNS seed nodes for peer discovery.
+    pub disable_dns_seeds: bool,
 
-    /// The wallet descriptor to keep track of funds for
-    pub wallet_descriptor: Option<String>,
+    /// Which blocks are assumed to have valid scripts.
+    pub assume_valid: AssumeValidArg,
+
+    /// SLIP-132-encoded extended public keys to watch.
+    pub wallet_xpub: Option<Vec<String>>,
+
+    /// Output descriptors to watch.
+    pub wallet_descriptor: Option<Vec<String>>,
+
+    /// Path to a TOML configuration file.
+    pub config_file: Option<String>,
+
+    /// SOCKS5 proxy for outgoing connections.
+    pub proxy: Option<String>,
+
+    /// Whether to build compact block filters.
+    pub cfilters: bool,
+
+    /// Block height to start downloading compact filters from.
+    pub filters_start_height: Option<i32>,
+
+    /// ZMQ server address (requires zmq-server feature).
+    pub zmq_address: Option<String>,
+
+    /// Nodes to connect to exclusively.
+    pub connect: Vec<String>,
+
+    /// JSON-RPC server address (requires json-rpc feature).
+    pub json_rpc_address: Option<String>,
+
+    /// Whether to write logs to stdout.
+    pub log_to_stdout: bool,
+
+    /// Whether to write logs to a file.
+    pub log_to_file: bool,
+
+    /// Enable assume-utreexo mode.
+    pub assume_utreexo: bool,
+
+    /// Enable debug logging.
+    pub debug: bool,
+
+    /// User agent string advertised to peers.
+    pub user_agent: String,
+
+    /// Custom Utreexo accumulator state for assume-utreexo.
+    pub assumeutreexo_value: Option<AssumeUtreexoValue>,
+
+    /// Electrum server address.
+    pub electrum_address: Option<String>,
+
+    /// Whether to enable the Electrum TLS server.
+    pub enable_electrum_tls: bool,
+
+    /// Electrum TLS server address.
+    pub electrum_address_tls: Option<String>,
+
+    /// Path to the TLS private key file.
+    pub tls_key_path: Option<String>,
+
+    /// Path to the TLS certificate file.
+    pub tls_cert_path: Option<String>,
+
+    /// Whether to generate a self-signed TLS certificate.
+    pub generate_cert: bool,
+
+    /// Whether to allow v1 transport fallback.
+    pub allow_v1_fallback: bool,
+
+    /// Whether to backfill skipped blocks.
+    pub backfill: bool,
 }
 
-impl From<Config> for florestad::Config {
-    fn from(config: Config) -> florestad::Config {
-        Self {
-            data_dir: config.data_dir,
-            electrum_address: config.electrum_address,
-            json_rpc_address: config.rpc_address,
-            filters_start_height: config.filters_start_height,
-            log_to_file: true,
-            log_to_stdout: false,
-            assume_utreexo: false,
-            network: config.network.into(),
-            wallet_descriptor: config.wallet_descriptor.map(|desc| vec![desc]),
-            cfilters: true,
-            ..Default::default()
+impl From<Config> for floresta_node::Config {
+    fn from(config: Config) -> floresta_node::Config {
+        let mut cfg = floresta_node::Config::new(config.network, PathBuf::from(&config.datadir));
+
+        cfg.disable_dns_seeds = config.disable_dns_seeds;
+        cfg.wallet_xpub = config.wallet_xpub;
+        cfg.wallet_descriptor = config.wallet_descriptor;
+        cfg.config_file = config.config_file.map(PathBuf::from);
+        cfg.proxy = config.proxy;
+        cfg.cfilters = config.cfilters;
+        cfg.filters_start_height = config.filters_start_height;
+        cfg.connect = config.connect;
+        cfg.json_rpc_address = config.json_rpc_address;
+
+        #[cfg(feature = "zmq-server")]
+        {
+            cfg.zmq_address = config.zmq_address;
         }
+
+        cfg.log_to_stdout = config.log_to_stdout;
+        cfg.log_to_file = config.log_to_file;
+        cfg.assume_utreexo = config.assume_utreexo;
+        cfg.debug = config.debug;
+        cfg.user_agent = config.user_agent;
+        cfg.electrum_address = config.electrum_address;
+        cfg.enable_electrum_tls = config.enable_electrum_tls;
+        cfg.electrum_address_tls = config.electrum_address_tls;
+        cfg.tls_key_path = config.tls_key_path.map(PathBuf::from);
+        cfg.tls_cert_path = config.tls_cert_path.map(PathBuf::from);
+        cfg.generate_cert = config.generate_cert;
+        cfg.allow_v1_fallback = config.allow_v1_fallback;
+        cfg.backfill = config.backfill;
+
+        cfg.assume_valid = match config.assume_valid {
+            AssumeValidArg::Disabled => floresta_node::AssumeValidArg::Disabled,
+            AssumeValidArg::Hardcoded => floresta_node::AssumeValidArg::Hardcoded,
+            AssumeValidArg::UserInput { block_hash } => {
+                let hash = bitcoin::BlockHash::from_str(&block_hash)
+                    .unwrap_or_else(|_| bitcoin::BlockHash::all_zeros());
+                floresta_node::AssumeValidArg::UserInput(hash)
+            }
+        };
+
+        cfg.assumeutreexo_value = config.assumeutreexo_value.and_then(|v| {
+            let hash = bitcoin::BlockHash::from_str(&v.block_hash)
+                .ok()
+                .unwrap_or_else(bitcoin::BlockHash::all_zeros);
+            let roots: Vec<rustreexo::node_hash::BitcoinNodeHash> = v
+                .roots
+                .iter()
+                .filter_map(|r| rustreexo::node_hash::BitcoinNodeHash::from_str(r).ok())
+                .collect();
+            if roots.len() != v.roots.len() {
+                return None;
+            }
+            Some(floresta_node::AssumeUtreexoValue {
+                block_hash: hash,
+                height: v.height,
+                roots,
+                leaves: v.leaves,
+            })
+        });
+
+        cfg
     }
 }

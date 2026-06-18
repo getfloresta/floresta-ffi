@@ -3,19 +3,17 @@ name = "floresta-ffi"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
-uniffi = { version = "0.26.1", features = ["build", "cli"] }
-florestad = { git = "https://github.com/vinteumorg/floresta", rev = "f1b61ff04237cd529cb88808500d44aec1b04009", features = [ "json-rpc", "compact-filters"]}
-bitcoin = "0.32.7"
-rustreexo = "0.4.0"
-tokio = "1.41.0"
+uniffi = { version = "0.27.3", features = ["build", "cli"] }
+floresta-node = { git = "https://github.com/getfloresta/Floresta", rev = "189ad1d46ae724abc5a7a6434d1f176750601ac2", features = ["json-rpc", "compact-filters"] }
+bitcoin = "0.32.8"
+rustreexo = "0.5.0"
+tokio = "1.52.3"
 
 [build-dependencies]
-uniffi = { version = "0.26.1", features = ["build", "cli"] }
+uniffi = { version = "0.27.3", features = ["build", "cli"] }
 
 [[bin]]
-# This can be whatever name makes sense for your project, but the rest of this tutorial assumes uniffi-bindgen.
 name = "uniffi-bindgen"
 path = "src/uniffi-bindgen.rs"
 
@@ -24,5 +22,8 @@ crate-type = ["cdylib"]
 name = "florestad_ffi"
 
 [dev-dependencies]
-uniffi = { version = "0.26.1", features = ["build", "cli"] }
+uniffi = { version = "0.27.3", features = ["build", "cli"] }
+
+[features]
+zmq-server = ["floresta-node/zmq-server"]
 
