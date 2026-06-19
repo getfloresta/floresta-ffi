@@ -1,22 +1,15 @@
-name: Rust Continuous Integration
+name: Rust CI
 
 on:
   push:
-    paths:
-      - "floresta-ffi/**"
   pull_request:
-    paths:
-      - "floresta-ffi/**"
 
 permissions: {}
 
 jobs:
-  test:
-    name: "Run tests"
-    runs-on: ubuntu-24.04
-    defaults:
-      run:
-        working-directory: floresta-ffi
+  linting:
+    name: "Lint"
+    runs-on: ubuntu-latest
 
     steps:
       - name: "Checkout"
@@ -28,40 +21,44 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           cache: false
+          components: clippy, rustfmt
 
-      - name: "Check Cargo.lock"
+      - name: "Install Boost"
         run: |
-          if ! cargo check --locked; then
-            echo "::error::Cargo.lock is stale. Run 'cargo generate-lockfile'."
-            exit 1
-          fi
+          sudo apt-get update
+          sudo apt-get install -y libboost-all-dev
 
-      - name: "Build"
-        run: cargo build
-
-      - name: "Test"
-        run: cargo test
-
-  check:
-    name: "Run clippy and fmt"
-    needs: test
-    runs-on: ubuntu-24.04
-    defaults:
-      run:
+      - name: "Check fmt"
         working-directory: floresta-ffi
+        run: cargo fmt --all -- --check
+
+      - name: "Check clippy"
+        working-directory: floresta-ffi
+        run: cargo clippy --all-targets -- -D warnings
+
+  test:
+    name: "Build and test"
+    runs-on: ubuntu-latest
     steps:
       - name: "Checkout"
         uses: actions/checkout@v5
         with:
           persist-credentials: false
 
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - name: "Set up Rust"
+        uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           cache: false
-          components: clippy, rustfmt
 
-      - name: "Check fmt"
-        run: cargo fmt --all -- --check
+      - name: "Install Boost"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libboost-all-dev
 
-      - name: "Check clippy"
-        run: cargo clippy --all-targets
+      - name: "Build"
+        working-directory: floresta-ffi
+        run: cargo build --locked
+
+      - name: "Test"
+        working-directory: floresta-ffi
+        run: cargo test --locked
