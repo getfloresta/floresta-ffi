@@ -65,13 +65,13 @@ pub struct AssumeUtreexoValue {
 /// Error returned by the Floresta FFI layer.
 pub enum FlorestaFfiError {
     /// The daemon failed to start, with an error message.
-    StartError { message: String },
+    StartError { details: String },
 }
 
 impl std::fmt::Display for FlorestaFfiError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::StartError { message } => write!(f, "{message}"),
+            Self::StartError { details } => write!(f, "{details}"),
         }
     }
 }
@@ -134,7 +134,7 @@ impl Florestad {
                 .start()
                 .await
                 .map_err(|e| FlorestaFfiError::StartError {
-                    message: e.to_string(),
+                    details: e.to_string(),
                 })
         })
     }

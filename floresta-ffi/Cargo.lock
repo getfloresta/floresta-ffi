@@ -409,8 +409,7 @@ dependencies = [
 [[package]]
 name = "bitcoinkernel"
 version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2af4fd16f643d5bc585073c8513a9fde0a72278a38d0957b78cfd8f2c21bbb36"
+source = "git+https://github.com/jaoleal/rust-bitcoinkernel?branch=android_support#f455014320d08fa3e0bbbe8f28611d1b5c7a4efd"
 dependencies = [
  "libbitcoinkernel-sys",
 ]
@@ -1481,8 +1480,7 @@ checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 [[package]]
 name = "libbitcoinkernel-sys"
 version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2906bc31f02dff7af9611fe9129c9eae021bd359f9d8e79824026fe1aaf28ab1"
+source = "git+https://github.com/jaoleal/rust-bitcoinkernel?branch=android_support#f455014320d08fa3e0bbbe8f28611d1b5c7a4efd"
 dependencies = [
  "cc",
 ]

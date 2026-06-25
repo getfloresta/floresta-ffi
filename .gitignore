@@ -8,3 +8,4 @@ floresta-android/lib/src/main/jniLibs/
 floresta-android/.gradle/
 *.iml
 .idea/
+local.properties

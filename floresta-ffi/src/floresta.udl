@@ -155,7 +155,7 @@ dictionary Config {
 [Error]
 interface FlorestaFfiError {
     /// The daemon failed to start.
-    StartError(string message);
+    StartError(string details);
 };
 
 /// A Floresta Bitcoin node instance.

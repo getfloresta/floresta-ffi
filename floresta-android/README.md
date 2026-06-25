@@ -23,9 +23,14 @@ dependencies {
    git clone https://github.com/getfloresta/floresta-ffi
    ```
 
-2. Install Android SDK and Build-Tools for API level 30+
+2. Install [Boost](https://www.boost.org/) 1.74+ development headers. On Ubuntu/Debian:
+   ```bash
+   sudo apt-get install libboost-all-dev
+   ```
 
-3. Setup `ANDROID_SDK_ROOT` and `ANDROID_NDK_ROOT` path variables. NDK version 27.2.12479018 or above is recommended. For example:
+3. Install Android SDK and Build-Tools for API level 30+
+
+4. Set up `ANDROID_SDK_ROOT` and `ANDROID_NDK_ROOT` path variables. NDK version 27.2.12479018 or above is recommended. For example:
    ```bash
    # Linux
    export ANDROID_SDK_ROOT=/usr/local/lib/android/sdk
@@ -35,19 +40,23 @@ dependencies {
    export ANDROID_SDK_ROOT=~/Library/Android/sdk
    export ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT/ndk/27.2.12479018
    ```
+   > [!NOTE]
+   > `ANDROID_NDK_HOME` must also be set when building for Android; the build scripts handle this automatically.
+   >
+   > Boost headers must be reachable through the NDK sysroot when cross-compiling. The build scripts create a symlink at `$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/<host>/sysroot/usr/include/boost → /usr/include/boost`.
 
-4. Build the Rust library and generate Kotlin bindings:
+5. Build the Rust library and generate Kotlin bindings:
    ```bash
    cd floresta-android
    bash ./scripts/release/build-release-linux-x86_64.sh
    ```
 
-5. Build the AAR:
+6. Build the AAR:
    ```bash
    ./gradlew assembleRelease
    ```
 
-6. Start an Android emulator and run tests:
+7. Start an Android emulator and run tests:
    ```bash
    ./gradlew connectedAndroidTest
    ```
