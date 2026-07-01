@@ -48,10 +48,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libboost-all-dev
 
-      - name: "Symlink Boost headers into NDK sysroot"
-        run: |
-          ln -sf /usr/include/boost "$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/boost"
-
       - name: "Build Android library"
         run: |
           cd floresta-android
