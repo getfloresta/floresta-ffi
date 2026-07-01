@@ -1,26 +1,52 @@
-## Floresta-ffi
+# Floresta-ffi
 
-This repository contains the code to generate ffi binding for [Floresta](https://github.com/Davidson-Souza/floresta). The code is generated using [uniffi](https://github.com/mozilla/uniffi-rs) and are curently tested on linux and MacOS, using Python 3. Uniffi supports other languages, but the code generation for those languages are not tested yet.
+This repository contains the code to generate FFI bindings for [Floresta](https://github.com/getfloresta/Floresta), a Bitcoin Utreexo full node. The bindings are generated using [UniFFI](https://github.com/mozilla/uniffi-rs).
 
-## How to generate the code
+## Supported targets
 
-If you want to generate the bindings and use it, you can use the [just command runner](https://github.com/casey/just) to generate the code. The just command runner is a simple command runner that allows you to define commands in a file called `justfile`. The `justfile` in this repository contains the commands to generate the bindings for the supported languages. To generate the bindings, you need to run the following command:
+| Language   | Platform          | Published Package                                   | Build Instructions              |
+|------------|-------------------|-----------------------------------------------------|---------------------------------|
+| Kotlin     | Android           | `org.getfloresta:floresta-android`                   | [floresta-android](floresta-android/README.md) |
+| Python     | Linux, macOS      | (source only)                                        | See below                       |
+
+## Repository structure
+
+```
+floresta-ffi/
+├── floresta-ffi/        # Rust crate with UniFFI bindings
+│   ├── src/             # Rust source + UDL definition
+│   └── Cargo.toml       # Rust dependencies
+├── floresta-android/    # Android library project (Gradle)
+│   ├── lib/             # Android library module
+│   └── scripts/         # Cross-compilation build scripts
+└── README.md
+```
+
+## How to generate the bindings
+
+If you want to generate the bindings and use it, you can use the [just command runner](https://github.com/casey/just) to generate the code. The `justfile` in the `floresta-ffi/` directory contains the commands to generate the bindings for the supported languages.
 
 ```bash
+cd floresta-ffi
 just gen-<your-language>
 ```
 
-Where `<your-language>` is the language you want to generate the bindings for. For example, to generate the bindings for python, you need to run the following command:
+Where `<your-language>` is the language you want to generate the bindings for. For example, to generate the bindings for Python:
 
 ```bash
+cd floresta-ffi
 just gen-python
 ```
 
-this will do two things: build the shared library and generate some glue code to use the shared library in python. The generated code will be in the `generated/<language>` folder, while the shared library will be in the `target/release` folder.
+This will build the shared library and generate glue code to use the shared library. The generated code will be in the `floresta-ffi/generated/<language>` folder.
+
+## Android
+
+See [floresta-android/README.md](floresta-android/README.md) for Android build and usage instructions.
 
 ## Python example
 
-To use it in Python, you need the generated bindings and the shared-object in the same folder. Then you can start `florestad` with
+To use it in Python, you need the generated bindings and the shared-object in the same folder. Then you can start `florestad` with:
 
 ```python
 from floresta import Florestad
@@ -30,44 +56,60 @@ daemon.start()
 
 # do something
 
-#at the end you need to stop the daemon
-
+# at the end you need to stop the daemon
 daemon.stop()
 ```
 
-after you start it, you'll have a json-rpc server and an Electrum server running on the default ports, you may use them to communicate with the daemon, see your balance, send transactions, etc.
+After you start it, you'll have a JSON-RPC server and an Electrum server running on the default ports. You may use them to communicate with the daemon, see your balance, send transactions, etc.
 
 ## Customizing the daemon
 
-There's a `Config` object that may be passed to the `Florestad` constructor, it has the following fields:
+There's a `Config` object that may be passed to the `Florestad` constructor. It has the following fields:
 
-- `cfilters`(bool) - Required: whether we should use BIP158 filters or not;
-- `cfilter_types`(list(FilterType)) - Required: the types of filters we should use;
-- `log_to_stdout`(bool) - Required: whether we should log to stdout or not;
-- `network`(Network) - Optional: the network we should use, default is `Network::Bitcoin`;
-- `data_dir`(str) - Optional: the directory where the daemon should store its data, default is `~/.floresta`;
-- `wallet_xpub`(list(str)) - Optional: the xpubs of the wallets we should keep track of;
-- `wallet_descriptor`(list(str)) - Optional: a list of output descriptors the wallets we should keep track of;
-- `rescan`(int) - Optional: download and check if the blocks after this height have something to our wallet;
-- `log_to_file`(bool);
-- `assume_valid`(str) - Optional: we assume that all blocks before this have valid signatures;
-- `config_file`(str) - Optional: path to a config file, default is inside the `datadir``;
-- `proxy`(str) - Optional: a socks5 proxy to use for network connections;
-- `connect`(str) - Optional: a node that we should connect exclusively to;
-- `json_rpc_address`(str) - Optional: the address to bind the json-rpc server;
-- `electrum_address`(str) - Optional: the address to bind the electrum server;
+- `datadir` (str) - Required: path to the data directory where chain and wallet data will be stored
+- `network` (Network) - Required: the Bitcoin network to run on (Bitcoin, Signet, Testnet, Regtest, Testnet4)
+- `assume_valid` (AssumeValidArg) - Required: which blocks are assumed to have valid scripts
+- `cfilters` (bool) - Whether to build and store compact block filters
+- `filters_start_height` (int) - Block height to start downloading compact filters from
+- `log_to_stdout` (bool) - Whether to write logs to stdout
+- `log_to_file` (bool) - Whether to write logs to a file
+- `wallet_xpub` (list[str]) - SLIP-132-encoded extended public keys to watch
+- `wallet_descriptor` (list[str]) - Output descriptors to watch
+- `config_file` (str) - Path to a TOML configuration file
+- `proxy` (str) - SOCKS5 proxy for outgoing connections
+- `connect` (list[str]) - Nodes to connect to exclusively
+- `json_rpc_address` (str) - Address for the JSON-RPC server to listen on
+- `zmq_address` (str) - Address for the ZMQ server (requires zmq-server feature)
+- `electrum_address` (str) - Address for the Electrum server to listen on
+- `enable_electrum_tls` (bool) - Whether to enable the Electrum TLS server
+- `electrum_address_tls` (str) - Address for the Electrum TLS server
+- `tls_key_path` (str) - Path to TLS private key file
+- `tls_cert_path` (str) - Path to TLS certificate file
+- `generate_cert` (bool) - Whether to generate a self-signed TLS certificate
+- `allow_v1_fallback` (bool) - Whether to allow v1 transport fallback
+- `assume_utreexo` (bool) - Enable assume-utreexo mode
+- `assumeutreexo_value` (AssumeUtreexoValue) - Custom Utreexo accumulator state
+- `backfill` (bool) - Whether to backfill skipped blocks
+- `debug` (bool) - Enable debug logging
+- `disable_dns_seeds` (bool) - Disable DNS seed nodes
+- `user_agent` (str) - User agent string advertised to peers
 
-to set them, just create a `Config` object and pass it to the `Florestad` constructor, like this:
+To set them, create a `Config` object and pass it to the `Florestad` constructor:
 
 ```python
-from floresta import Florestad, Config, Network, FilterType
+from floresta import Florestad, Config, Network, AssumeValidArg
 
 config = Config(
-        cfilters=True,
-        cfilter_types=[FilterType::All],
-        log_to_stdout=True,
-        network=Network::Bitcoin,
-    )
-daemon = Florestad(config)
+    datadir="/path/to/data",
+    network=Network.Bitcoin,
+    assume_valid=AssumeValidArg.Hardcoded(),
+    cfilters=True,
+    log_to_stdout=True,
+)
+daemon = Florestad.from_config(config)
 daemon.start()
 ```
+
+## License
+
+MIT

@@ -1,1 +1,11 @@
 /target
+floresta-ffi/target/
+floresta-android/build/
+floresta-android/lib/build/
+floresta-android/plugins/build/
+floresta-android/lib/src/main/kotlin/org/
+floresta-android/lib/src/main/jniLibs/
+floresta-android/.gradle/
+*.iml
+.idea/
+local.properties

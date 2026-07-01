@@ -1,0 +1,79 @@
+name: Test Android
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "floresta-ffi/**"
+      - "floresta-android/**"
+  pull_request:
+    paths:
+      - "floresta-ffi/**"
+      - "floresta-android/**"
+
+permissions: {}
+
+jobs:
+  test:
+    name: "Test Android library"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: "Checkout"
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: "Set up JDK"
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: "Set up Android SDK"
+        uses: android-actions/setup-android@v3
+
+      - name: "Set up Android NDK"
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r26c
+
+      - name: "Set up Rust"
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          cache: false
+
+      - name: "Install Boost"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libboost-all-dev
+
+      - name: "Build Android library"
+        run: |
+          cd floresta-android
+          bash ./scripts/release/build-release-linux-x86_64.sh
+
+      - name: "Free Disk Space (Ubuntu)"
+        uses: AdityaGarg8/remove-unwanted-software@v5
+        with:
+          remove-dotnet: true
+          remove-haskell: true
+          remove-codeql: true
+          remove-docker-images: true
+          remove-large-packages: false
+
+      - name: "Enable KVM"
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: "Run Android connected tests"
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: Nexus 6
+          emulator-options: "-no-window -gpu swiftshader_indirect -no-snapshot"
+          script: cd floresta-android && ./gradlew connectedAndroidTest --console=plain

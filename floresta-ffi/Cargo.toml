@@ -1,0 +1,40 @@
+[package]
+name = "floresta-ffi"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+uniffi = { version = "0.31.1", features = ["cli"] }
+floresta-node = { git = "https://github.com/getfloresta/Floresta", rev = "189ad1d46ae724abc5a7a6434d1f176750601ac2", features = ["json-rpc", "compact-filters"] }
+bitcoin = "=0.32.8"
+rustreexo = "=0.5.0"
+tokio = "=1.52.3"
+
+[build-dependencies]
+uniffi = { version = "0.31.1", features = ["build"] }
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "src/uniffi-bindgen.rs"
+
+[lib]
+crate-type = ["cdylib"]
+name = "florestad_ffi"
+
+[dev-dependencies]
+uniffi = { version = "0.31.1", features = ["bindgen"] }
+
+[features]
+zmq-server = ["floresta-node/zmq-server"]
+
+[profile.release-smaller]
+inherits = "release"
+opt-level = 'z'
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = "debuginfo"
+
+[patch.crates-io]
+bitcoinkernel = { git = "https://github.com/jaoleal/rust-bitcoinkernel", branch = "android_support" }
+
