@@ -1,12 +1,13 @@
-uniffi::include_scaffolding!("floresta");
+uniffi::setup_scaffolding!("floresta");
 
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::sync::Arc;
 
 use bitcoin::hashes::Hash;
 
-#[derive(Debug, Clone)]
 /// The Bitcoin network to run on.
+#[derive(Debug, Clone, uniffi::Enum)]
 pub enum Network {
     /// Bitcoin mainnet.
     Bitcoin,
@@ -32,7 +33,7 @@ impl From<Network> for bitcoin::Network {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, uniffi::Enum)]
 /// Configures the assume-valid behavior for script validation.
 pub enum AssumeValidArg {
     /// Validate all scripts from genesis.
@@ -45,7 +46,7 @@ pub enum AssumeValidArg {
     UserInput { block_hash: String },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, uniffi::Record)]
 /// A pre-computed Utreexo accumulator state.
 pub struct AssumeUtreexoValue {
     /// The block hash at which this accumulator state is valid.
@@ -61,7 +62,7 @@ pub struct AssumeUtreexoValue {
     pub leaves: u64,
 }
 
-#[derive(Debug)]
+#[derive(Debug, uniffi::Error)]
 /// Error returned by the Floresta FFI layer.
 pub enum FlorestaFfiError {
     /// The daemon failed to start, with an error message.
@@ -83,17 +84,20 @@ impl std::error::Error for FlorestaFfiError {}
 /// Wraps the Floresta daemon and a Tokio runtime. Create with [`Florestad::new`]
 /// for defaults or [`Florestad::from_config`] for custom settings. Call
 /// [`Florestad::start`] to begin syncing and [`Florestad::stop`] before exit.
+#[derive(uniffi::Object)]
 pub struct Florestad {
     rt: tokio::runtime::Runtime,
     florestad: floresta_node::Florestad,
 }
 
+#[uniffi::export]
 impl Florestad {
     /// Create a new Floresta node with default configuration.
     ///
     /// Uses Bitcoin mainnet and the `$HOME/.floresta` data directory.
     /// Falls back to the system temp directory if `$HOME` is not set.
-    pub fn new() -> Florestad {
+    #[uniffi::constructor]
+    pub fn new() -> Arc<Florestad> {
         let _rt = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .worker_threads(4)
@@ -107,11 +111,12 @@ impl Florestad {
             .join(".floresta");
         let config = floresta_node::Config::new(bitcoin::Network::Bitcoin, datadir);
         let florestad = floresta_node::Florestad::from_config(config);
-        Self { rt: _rt, florestad }
+        Arc::new(Self { rt: _rt, florestad })
     }
 
     /// Create a new Floresta node with the given configuration.
-    pub fn from_config(config: Config) -> Florestad {
+    #[uniffi::constructor]
+    pub fn from_config(config: Config) -> Arc<Florestad> {
         let _rt = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .worker_threads(4)
@@ -120,7 +125,7 @@ impl Florestad {
             .expect("failed to create tokio runtime");
 
         let florestad = floresta_node::Florestad::from_config(config.into());
-        Self { rt: _rt, florestad }
+        Arc::new(Self { rt: _rt, florestad })
     }
 
     /// Start the node.
@@ -150,13 +155,8 @@ impl Florestad {
     }
 }
 
-impl Default for Florestad {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 /// Configuration for the Floresta daemon.
+#[derive(Clone, uniffi::Record)]
 pub struct Config {
     /// Path to the data directory. Must be readable and writable.
     pub datadir: String,
@@ -165,78 +165,102 @@ pub struct Config {
     pub network: Network,
 
     /// Disable DNS seed nodes for peer discovery.
+    #[uniffi(default = false)]
     pub disable_dns_seeds: bool,
 
     /// Which blocks are assumed to have valid scripts.
     pub assume_valid: AssumeValidArg,
 
     /// SLIP-132-encoded extended public keys to watch.
+    #[uniffi(default = None)]
     pub wallet_xpub: Option<Vec<String>>,
 
     /// Output descriptors to watch.
+    #[uniffi(default = None)]
     pub wallet_descriptor: Option<Vec<String>>,
 
     /// Path to a TOML configuration file.
+    #[uniffi(default = None)]
     pub config_file: Option<String>,
 
     /// SOCKS5 proxy for outgoing connections.
+    #[uniffi(default = None)]
     pub proxy: Option<String>,
 
     /// Whether to build compact block filters.
+    #[uniffi(default = false)]
     pub cfilters: bool,
 
     /// Block height to start downloading compact filters from.
+    #[uniffi(default = None)]
     pub filters_start_height: Option<i32>,
 
     /// ZMQ server address (requires zmq-server feature).
+    #[uniffi(default = None)]
     pub zmq_address: Option<String>,
 
     /// Nodes to connect to exclusively.
+    #[uniffi(default = [])]
     pub connect: Vec<String>,
 
     /// JSON-RPC server address (requires json-rpc feature).
+    #[uniffi(default = None)]
     pub json_rpc_address: Option<String>,
 
     /// Whether to write logs to stdout.
+    #[uniffi(default = false)]
     pub log_to_stdout: bool,
 
     /// Whether to write logs to a file.
+    #[uniffi(default = false)]
     pub log_to_file: bool,
 
     /// Enable assume-utreexo mode.
+    #[uniffi(default = false)]
     pub assume_utreexo: bool,
 
     /// Enable debug logging.
+    #[uniffi(default = false)]
     pub debug: bool,
 
     /// User agent string advertised to peers.
+    #[uniffi(default = "")]
     pub user_agent: String,
 
     /// Custom Utreexo accumulator state for assume-utreexo.
+    #[uniffi(default = None)]
     pub assumeutreexo_value: Option<AssumeUtreexoValue>,
 
     /// Electrum server address.
+    #[uniffi(default = None)]
     pub electrum_address: Option<String>,
 
     /// Whether to enable the Electrum TLS server.
+    #[uniffi(default = false)]
     pub enable_electrum_tls: bool,
 
     /// Electrum TLS server address.
+    #[uniffi(default = None)]
     pub electrum_address_tls: Option<String>,
 
     /// Path to the TLS private key file.
+    #[uniffi(default = None)]
     pub tls_key_path: Option<String>,
 
     /// Path to the TLS certificate file.
+    #[uniffi(default = None)]
     pub tls_cert_path: Option<String>,
 
     /// Whether to generate a self-signed TLS certificate.
+    #[uniffi(default = false)]
     pub generate_cert: bool,
 
     /// Whether to allow v1 transport fallback.
+    #[uniffi(default = false)]
     pub allow_v1_fallback: bool,
 
     /// Whether to backfill skipped blocks.
+    #[uniffi(default = false)]
     pub backfill: bool,
 }
 
